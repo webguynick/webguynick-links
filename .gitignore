@@ -1,0 +1,13 @@
+# Runtime data — your captured stats. Keep them local, don't commit.
+data/
+*.ndjson
+
+# Node
+node_modules/
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+.env
+.env.local
+*.log

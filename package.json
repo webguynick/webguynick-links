@@ -1,0 +1,14 @@
+{
+  "name": "webguynick-links",
+  "version": "1.0.0",
+  "description": "A self-hosted Linktree clone with full, privacy-friendly stats tracking. Zero dependencies.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}
