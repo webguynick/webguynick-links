@@ -7,16 +7,79 @@
 
 const Assets = {
   available: {},   // { 'assets/cats/minnie_loaf.png': true/false }
-  images: {},      // preloaded Image objects for available assets
+  images: {},      // preloaded Image/Canvas objects for available assets
+  cutouts: {},     // data-URLs of sprites with their white background removed
+
+  /** Sprites (not map tiles) get their white background auto-removed. */
+  needsCutout(src) {
+    return src.startsWith('assets/cats/') || src.startsWith('assets/ui/') || src === ASSET_MANIFEST.logo;
+  },
 
   /** Try to load one image; remember whether it exists. */
   probe(src) {
     return new Promise((resolve) => {
       const img = new Image();
-      img.onload = () => { this.available[src] = true; this.images[src] = img; resolve(true); };
+      img.onload = () => {
+        this.available[src] = true;
+        this.images[src] = img;
+        if (this.needsCutout(src)) {
+          try { this.cutouts[src] = this.removeWhite(img); } catch (e) { /* keep original */ }
+        }
+        resolve(true);
+      };
       img.onerror = () => { this.available[src] = false; resolve(false); };
       img.src = src;
     });
+  },
+
+  /**
+   * Strip a plain white/near-white background from a sprite so AI-generated
+   * art on white works like a transparent PNG. Flood-fills from the borders
+   * (so white INSIDE the cat, like Minnie's chest, is preserved) and feathers
+   * light-grey edge pixels. Returns a data URL.
+   */
+  removeWhite(img) {
+    const S = 512; // plenty for in-game sizes, keeps processing fast
+    const c = document.createElement('canvas');
+    c.width = S; c.height = S;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0, S, S);
+    const im = ctx.getImageData(0, 0, S, S);
+    const d = im.data;
+    const white = (i) => d[i] > 234 && d[i + 1] > 234 && d[i + 2] > 234;
+    const seen = new Uint8Array(S * S);
+    const queue = [];
+    // seed with all border pixels that are near-white
+    for (let x = 0; x < S; x++) { queue.push(x, (S - 1) * S + x); }
+    for (let y = 0; y < S; y++) { queue.push(y * S, y * S + S - 1); }
+    while (queue.length) {
+      const p = queue.pop();
+      if (seen[p]) continue;
+      seen[p] = 1;
+      const i = p * 4;
+      if (!white(i)) continue;
+      d[i + 3] = 0; // transparent
+      const x = p % S, y = (p / S) | 0;
+      if (x > 0) queue.push(p - 1);
+      if (x < S - 1) queue.push(p + 1);
+      if (y > 0) queue.push(p - S);
+      if (y < S - 1) queue.push(p + S);
+    }
+    // feather: light-grey pixels touching the removed area fade out softly
+    for (let p = 0; p < S * S; p++) {
+      const i = p * 4;
+      if (d[i + 3] === 0) continue;
+      const x = p % S, y = (p / S) | 0;
+      const nearClear =
+        (x > 0 && d[(p - 1) * 4 + 3] === 0) || (x < S - 1 && d[(p + 1) * 4 + 3] === 0) ||
+        (y > 0 && d[(p - S) * 4 + 3] === 0) || (y < S - 1 && d[(p + S) * 4 + 3] === 0);
+      if (!nearClear) continue;
+      const bright = (d[i] + d[i + 1] + d[i + 2]) / 3;
+      const spread = Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2]);
+      if (bright > 205 && spread < 24) d[i + 3] = Math.round(255 * (255 - bright) / 50);
+    }
+    ctx.putImageData(im, 0, 0);
+    return c.toDataURL('image/png');
   },
 
   /** Probe every slot in the manifest. Resolves fast; failures are cheap 404s. */
@@ -69,14 +132,14 @@ const Assets = {
     return wrap;
   },
 
-  /** Real <img>, with the accessory emoji overlaid if one is equipped. */
+  /** Real <img> (white-bg cutout if processed), accessory emoji overlaid. */
   _imgNode(src, alt, size, custom) {
     const wrap = document.createElement('div');
     wrap.className = 'cat-draw';
     wrap.style.width = size;
     wrap.style.height = size;
     const img = document.createElement('img');
-    img.src = src;
+    img.src = this.cutouts[src] || src;
     img.alt = alt;
     img.className = 'cat-sprite';
     img.draggable = false;
@@ -92,7 +155,7 @@ const Assets = {
     const src = ASSET_MANIFEST.treats[treatId];
     if (this.has(src)) {
       const img = document.createElement('img');
-      img.src = src;
+      img.src = this.cutouts[src] || src;
       img.alt = CONFIG.treats[treatId].name;
       img.style.width = size; img.style.height = size;
       img.draggable = false;

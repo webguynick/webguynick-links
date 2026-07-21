@@ -4,7 +4,7 @@
    Bump CACHE_VERSION whenever you change game files.
    ========================================================================== */
 
-const CACHE_VERSION = 'catvidgo-v2';
+const CACHE_VERSION = 'catvidgo-v3';
 
 const APP_SHELL = [
   './',

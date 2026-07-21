@@ -7,10 +7,11 @@ window.addEventListener('DOMContentLoaded', async () => {
   State.load();
   await Assets.probeAll();   // fast: parallel probes, 404s just flag placeholders
 
-  // real logo if present, else styled text logo stays
+  // real logo if present (white background auto-removed), else text logo stays
   if (Assets.has(ASSET_MANIFEST.logo)) {
+    const src = Assets.cutouts[ASSET_MANIFEST.logo] || ASSET_MANIFEST.logo;
     document.querySelectorAll('.logo-slot').forEach((slot) => {
-      slot.innerHTML = `<img src="${ASSET_MANIFEST.logo}" alt="CatVid GO" class="logo-img">`;
+      slot.innerHTML = `<img src="${src}" alt="CatVid GO" class="logo-img">`;
     });
   }
 

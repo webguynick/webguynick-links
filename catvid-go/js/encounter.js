@@ -318,6 +318,18 @@ const Encounter = {
     th.x += th.vx * dt;
     th.y += th.vy * dt;
 
+    // gold sparkle trail behind the flying treat
+    th.trailAcc = (th.trailAcc || 0) + dt;
+    if (th.trailAcc > 0.03) {
+      th.trailAcc = 0;
+      const dot = document.createElement('div');
+      dot.className = 'treat-trail';
+      dot.style.left = `${th.x + (Math.random() * 8 - 4)}px`;
+      dot.style.top = `${th.y + (Math.random() * 8 - 4)}px`;
+      stage.appendChild(dot);
+      setTimeout(() => dot.remove(), 520);
+    }
+
     const catY = stage.clientHeight * 0.26;
     const startY = stage.clientHeight - 70;
     const progress = Math.max(0, Math.min(1, (startY - th.y) / (startY - catY)));

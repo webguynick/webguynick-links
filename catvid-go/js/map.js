@@ -19,7 +19,6 @@ const GameMap = {
      Each prop: [emoji, x%, y%, fontSizePx]                                  */
   SCENERY: {
     backyard: {
-      ground: 'linear-gradient(160deg,#b8dba1,#9ccc82 45%,#aed491)',
       props: [
         ['🏠', 12, 8, 84], ['🏡', 72, 12, 84], ['🌳', 30, 22, 64], ['🌳', 88, 40, 64],
         ['🌷', 22, 48, 36], ['🌻', 58, 30, 36], ['⛲', 48, 58, 72], ['🌳', 10, 70, 64],
@@ -28,7 +27,6 @@ const GameMap = {
       ],
     },
     living: {
-      ground: 'linear-gradient(160deg,#e8d4bc,#dfc3a4 50%,#e6cfb4)',
       props: [
         ['🛋️', 40, 15, 96], ['📺', 15, 10, 64], ['🪑', 70, 25, 56], ['🧶', 30, 40, 40],
         ['🐾', 55, 45, 32], ['🪟', 88, 12, 64], ['🧸', 20, 60, 48], ['📚', 75, 55, 48],
@@ -36,7 +34,6 @@ const GameMap = {
       ],
     },
     kitchen: {
-      ground: 'linear-gradient(160deg,#f3e3cf,#ead2b3 50%,#f0dcc3)',
       props: [
         ['🍳', 20, 10, 64], ['🥘', 70, 8, 56], ['🍽️', 45, 20, 48], ['🥫', 85, 30, 44],
         ['🐟', 30, 38, 40], ['🥛', 60, 42, 40], ['🍗', 15, 55, 44], ['🧀', 80, 60, 44],
@@ -44,7 +41,6 @@ const GameMap = {
       ],
     },
     midnight: {
-      ground: 'linear-gradient(160deg,#2a2d4a,#1c1e35 50%,#232544)',
       props: [
         ['🌙', 80, 6, 72], ['⭐', 20, 8, 32], ['✨', 55, 14, 32], ['🏠', 12, 25, 84],
         ['💤', 40, 30, 40], ['⭐', 70, 35, 28], ['🛋️', 60, 50, 80], ['👀', 25, 55, 36],
@@ -95,23 +91,39 @@ const GameMap = {
     const zone = ZONES.find((z) => z.id === zoneId);
     const scen = this.SCENERY[zoneId];
     const tile = ASSET_MANIFEST.maps[zoneId];
-    this.world.className = 'map-world' + (zone.night ? ' night' : '');
-    if (Assets.has(tile)) {
-      this.world.style.background = `url(${tile}) repeat`;
-      this.world.style.backgroundSize = '512px 512px';
+    const hasArt = Assets.has(tile);
+    this.world.className = 'map-world zone-' + zoneId + (zone.night ? ' night' : '');
+    if (hasArt) {
+      // full-map illustration: stretch a single 1:1 image across the world
+      this.world.style.background = `url(${tile}) center / 100% 100% no-repeat`;
     } else {
-      this.world.style.background = scen.ground;
+      this.world.style.background = ''; // CSS zone textures take over
     }
-    this.world.querySelectorAll('.map-prop').forEach((n) => n.remove());
-    scen.props.forEach(([emoji, x, y, size]) => {
-      const p = document.createElement('div');
-      p.className = 'map-prop';
-      p.textContent = emoji;
-      p.style.left = `${x}%`;
-      p.style.top = `${y}%`;
-      p.style.fontSize = `${size}px`;
-      this.world.appendChild(p);
-    });
+    this.world.querySelectorAll('.map-prop, .map-star').forEach((n) => n.remove());
+    if (!hasArt) {
+      // emoji scenery only when there's no real map art
+      scen.props.forEach(([emoji, x, y, size]) => {
+        const p = document.createElement('div');
+        p.className = 'map-prop';
+        p.textContent = emoji;
+        p.style.left = `${x}%`;
+        p.style.top = `${y}%`;
+        p.style.fontSize = `${size}px`;
+        this.world.appendChild(p);
+      });
+    }
+    if (zone.night) {
+      // twinkling stars over the midnight zone (on top of art or CSS ground)
+      for (let i = 0; i < 26; i++) {
+        const s = document.createElement('div');
+        s.className = 'map-star';
+        s.style.left = `${Math.random() * 98}%`;
+        s.style.top = `${Math.random() * 98}%`;
+        s.style.animationDelay = `${Math.random() * 3}s`;
+        s.style.animationDuration = `${1.6 + Math.random() * 2.4}s`;
+        this.world.appendChild(s);
+      }
+    }
 
     // center camera
     this.offset.x = -(this.WORLD_W - this.viewport.clientWidth) / 2;
