@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>CatVid GO 🐾 — catch Minnie Mouse & Biscuit!</title>
+  <meta name="description" content="A cat-collecting adventure starring the real cats of crazycatvid.com. Explore the neighborhood, flick treats, fill your Cat-alog!">
+  <meta name="theme-color" content="#FF6F61">
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="assets/icon-192.png">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="CatVid GO">
+
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- ============================= SPLASH ============================= -->
+  <div id="splash">
+    <div class="splash-inner">
+      <div class="paw-icon splash-paw"></div>
+      <div class="logo-slot">
+        <h1 class="text-logo">CatVid <span>GO</span></h1>
+      </div>
+      <p class="splash-tag">Catch Minnie Mouse & Biscuit in every mood!</p>
+      <button id="play-btn" class="btn btn-coral btn-big">PLAY 🐾</button>
+    </div>
+    <footer class="brand-footer">crazycatvid.com</footer>
+  </div>
+
+  <!-- ============================== HUD =============================== -->
+  <header id="hud">
+    <div class="hud-title"><span class="paw-icon"></span> CatVid GO</div>
+    <div class="hud-right">
+      <div class="hud-coins"><span class="paw-icon gold"></span><span id="hud-coins">0</span></div>
+      <div class="hud-lv" id="hud-level">Lv 1</div>
+    </div>
+  </header>
+
+  <!-- ============================ SCREENS ============================= -->
+  <main>
+    <!-- MAP -->
+    <section id="screen-map" class="screen active">
+      <div id="zone-tabs"></div>
+      <div id="map-viewport">
+        <div id="map-world" class="map-world"></div>
+        <div id="lure-timer" class="hidden"></div>
+        <div class="map-hint">drag to explore · tap a cat!</div>
+      </div>
+    </section>
+
+    <!-- CAT-ALOG -->
+    <section id="screen-catalog" class="screen">
+      <div class="screen-head">
+        <h2>Cat-alog</h2>
+        <span id="catalog-count" class="pill"></span>
+        <button id="share-btn" class="btn btn-gold">📸 Share Card</button>
+      </div>
+      <div id="catalog-grid"></div>
+    </section>
+
+    <!-- SHOP -->
+    <section id="screen-shop" class="screen">
+      <div class="screen-head"><h2>Treat Shop</h2></div>
+      <div id="shop-list"></div>
+    </section>
+
+    <!-- PROFILE -->
+    <section id="screen-profile" class="screen">
+      <div class="screen-head"><h2>Profile</h2></div>
+      <div class="prof-card">
+        <div class="prof-level-ring"><span id="prof-level">1</span></div>
+        <div class="prof-xp">
+          <div class="xp-bar"><div id="prof-xp-fill"></div></div>
+          <div id="prof-xp-label" class="xp-label"></div>
+        </div>
+      </div>
+      <div class="prof-card prof-row">
+        <div>🔥 Streak: <b id="prof-streak">1 day</b></div>
+        <div>☀️ Daily bonus: <b id="prof-daily"></b></div>
+      </div>
+      <div id="prof-stats" class="prof-card prof-stats"></div>
+
+      <!-- SETTINGS (lives on the profile screen) -->
+      <div class="prof-card settings">
+        <h3>Settings</h3>
+        <button id="set-mute" class="btn btn-outline">🔊 Sound: ON</button>
+        <button id="set-reset" class="btn btn-outline danger">🗑️ Reset Progress</button>
+        <p class="credits">All cats based on the real Minnie Mouse and Biscuit from crazycatvid.com 💛</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- =========================== ENCOUNTER ============================ -->
+  <div id="encounter" class="overlay hidden">
+    <div class="enc-header">
+      <div>
+        <div id="enc-name" class="enc-name"></div>
+        <div id="enc-stars" class="enc-stars"></div>
+      </div>
+      <div id="enc-misses" class="enc-misses"></div>
+    </div>
+    <div id="enc-stage">
+      <div class="enc-cat-wrap">
+        <div id="enc-ring"></div>
+        <div id="enc-cat" class="enc-cat idle"></div>
+      </div>
+      <div id="enc-treat"></div>
+      <div id="enc-banner" class="hidden"></div>
+      <div class="enc-hint">flick the treat at the cat! small ring = better catch</div>
+    </div>
+    <div class="enc-controls">
+      <div id="enc-treat-select"></div>
+      <button id="enc-laser" class="btn btn-outline">🔴 ×0</button>
+      <button id="enc-flee" class="btn btn-outline">Run 💨</button>
+    </div>
+    <footer class="brand-footer">crazycatvid.com</footer>
+  </div>
+
+  <!-- =========================== LEVEL UP ============================= -->
+  <div id="levelup" class="overlay hidden">
+    <div class="levelup-card">
+      <div class="levelup-burst">🎉</div>
+      <h2>LEVEL UP!</h2>
+      <div class="levelup-num-ring"><span id="levelup-num">2</span></div>
+      <p id="levelup-unlock" class="levelup-unlock"></p>
+      <button id="levelup-close" class="btn btn-coral btn-big">LET'S GO 🐾</button>
+    </div>
+  </div>
+
+  <!-- toast + tab bar + footer -->
+  <div id="toast"></div>
+
+  <nav id="tabbar">
+    <button class="tab active" data-screen="map"><span class="paw-icon"></span>Map</button>
+    <button class="tab" data-screen="catalog"><span class="paw-icon"></span>Cat-alog</button>
+    <button class="tab" data-screen="shop"><span class="paw-icon"></span>Shop</button>
+    <button class="tab" data-screen="profile"><span class="paw-icon"></span>Profile</button>
+  </nav>
+  <footer id="site-footer" class="brand-footer">crazycatvid.com</footer>
+
+  <!-- game scripts (plain JS, load order matters, no build step) -->
+  <script src="js/config.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/assets.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/encounter.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
