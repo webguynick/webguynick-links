@@ -4,7 +4,7 @@
    Bump CACHE_VERSION whenever you change game files.
    ========================================================================== */
 
-const CACHE_VERSION = 'catvidgo-v1';
+const CACHE_VERSION = 'catvidgo-v2';
 
 const APP_SHELL = [
   './',
@@ -14,6 +14,7 @@ const APP_SHELL = [
   './js/config.js',
   './js/state.js',
   './js/audio.js',
+  './js/catsvg.js',
   './js/assets.js',
   './js/map.js',
   './js/encounter.js',

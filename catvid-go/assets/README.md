@@ -22,6 +22,17 @@ The full machine-readable list also lives at the top of `js/config.js`
 | `minnie_floof.png` | `biscuit_floof.png` |
 | `minnie_zoomies.png` | `biscuit_zoomies.png` |
 
+## Stray breed sprites — `assets/cats/` (512×512 PNG, transparent) — OPTIONAL
+
+The game draws strays as cute recolorable vector cats out of the box. If you
+add real art it is used as-is (player recoloring then only applies collar +
+accessory overlays).
+
+`stray_orange_tabby.png` · `stray_grey_tabby.png` · `stray_void.png` ·
+`stray_siamese.png` · `stray_russian_blue.png` · `stray_snowshoe.png` ·
+`stray_tortie.png` · `stray_calico.png` · `stray_bengal.png` ·
+`stray_maine_coon.png` · `stray_sphynx.png` · `stray_scottish_fold.png`
+
 ## Map tiles — `assets/map/` (1024×1024 PNG, tileable, top-down cartoon)
 
 - `backyard.png` — grass, fence, flower beds

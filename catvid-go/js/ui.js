@@ -36,6 +36,11 @@ const UI = {
       setTimeout(() => document.getElementById('splash').remove(), 600);
     });
 
+    // Enter key submits the name modal
+    document.getElementById('name-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('name-ok').click();
+    });
+
     this.initSettings();
     this.updateHud();
   },
@@ -51,6 +56,7 @@ const UI = {
       t.classList.toggle('active', t.dataset.screen === name);
     });
     if (name === 'catalog') this.renderCatalog();
+    if (name === 'family') this.renderFamily();
     if (name === 'shop') this.renderShop();
     if (name === 'profile') this.renderProfile();
     this.updateHud();
@@ -116,7 +122,7 @@ const UI = {
     const grid = document.getElementById('catalog-grid');
     grid.innerHTML = '';
     const caughtCount = ALL_FORMS.filter((f) => State.data.collection[f.key]).length;
-    document.getElementById('catalog-count').textContent = `${caughtCount} / ${ALL_FORMS.length} caught`;
+    document.getElementById('catalog-count').textContent = `${caughtCount} / ${ALL_FORMS.length} befriended`;
 
     ALL_FORMS.forEach((form) => {
       const times = State.data.collection[form.key] || 0;
@@ -133,7 +139,7 @@ const UI = {
           <div class="cata-name">${form.moodName}</div>
           <div class="cata-cat">${form.catName}</div>
           <div class="cata-stars">${'★'.repeat(r.stars)}</div>
-          <div class="cata-times">caught ×${times}</div>
+          <div class="cata-times">befriended ×${times}</div>
           <div class="cata-desc">${form.desc}</div>`);
       } else {
         card.insertAdjacentHTML('beforeend', `
@@ -157,7 +163,7 @@ const UI = {
       .sort((a, b) => RARITY_ORDER[b.rarity] - RARITY_ORDER[a.rarity]
         || (State.data.collection[b.key] - State.data.collection[a.key]));
 
-    if (!caught.length) { this.toast('Catch a cat first, then flex. 😼'); return; }
+    if (!caught.length) { this.toast('Befriend a cat first, then flex. 😼'); return; }
 
     const c = document.createElement('canvas');
     c.width = 1080; c.height = 1080;
@@ -216,10 +222,10 @@ const UI = {
     // footer branding
     ctx.fillStyle = B.charcoal;
     ctx.font = F(600, 36);
-    ctx.fillText(`${State.data.stats.catches} cats caught · ${State.data.stats.legendary} legendary`, 540, 1000);
+    ctx.fillText(`${State.data.stats.catches} cats befriended · ${State.data.stats.legendary} legendary`, 540, 1000);
     ctx.fillStyle = B.coral;
     ctx.font = F(800, 44);
-    ctx.fillText('catch them all at crazycatvid.com 🐾', 540, 1055);
+    ctx.fillText('befriend them all at crazycatvid.com 🐾', 540, 1055);
 
     // download as PNG
     c.toBlob((blob) => {
@@ -240,6 +246,305 @@ const UI = {
     ctx.arcTo(x, y + h, x, y, r);
     ctx.arcTo(x, y, x + w, y, r);
     ctx.closePath();
+  },
+
+  /* ------------------------------ Cat Family ------------------------------ */
+
+  renderFamily() {
+    const list = document.getElementById('family-list');
+    list.innerHTML = '';
+    const d = State.data;
+
+    // the two stars are always family
+    CAT_IDS.forEach((catId) => {
+      const cat = CATS[catId];
+      const custom = d.famCustom[catId];
+      list.appendChild(this.familyCard({
+        node: Assets.catNode(
+          { catId, sprite: ASSET_MANIFEST.catSprite(catId, 'friendly'), catName: cat.name, moodName: 'Friendly', emoji: '⭐' },
+          '90px',
+          { collar: custom.collar, accessory: custom.accessory }
+        ),
+        name: cat.name,
+        sub: `${cat.blurb}`,
+        badge: '⭐ Original',
+        onCustomize: () => this.openCustomizer({ starId: catId }),
+      }));
+    });
+
+    // adopted strays
+    d.family.forEach((fam) => {
+      const breed = BREEDS.find((b) => b.id === fam.breedId);
+      if (!breed) return;
+      const r = CONFIG.rarity[fam.rarity];
+      list.appendChild(this.familyCard({
+        node: Assets.strayNode(breed, '90px',
+          Object.assign({}, fam.colors, { collar: fam.collar, accessory: fam.accessory })),
+        name: fam.name,
+        sub: `${breed.name} · adopted ${fam.adoptedAt}`,
+        badge: `${'★'.repeat(r.stars)} · ${'⭐'.repeat(fam.stars)} photo`,
+        onCustomize: () => this.openCustomizer({ fam }),
+        onRename: () => this.promptRename(fam),
+      }));
+    });
+
+    document.getElementById('family-count').textContent =
+      `${2 + d.family.length} cats`;
+    document.getElementById('family-empty').classList.toggle('hidden', d.family.length > 0);
+  },
+
+  familyCard({ node, name, sub, badge, onCustomize, onRename }) {
+    const card = document.createElement('div');
+    card.className = 'fam-card';
+    const art = document.createElement('div');
+    art.className = 'fam-art';
+    art.appendChild(node);
+    const info = document.createElement('div');
+    info.className = 'fam-info';
+    info.innerHTML = `<div class="fam-name">${name}</div>
+      <div class="fam-sub">${sub}</div>
+      <div class="fam-badge">${badge}</div>`;
+    const btns = document.createElement('div');
+    btns.className = 'fam-btns';
+    const cust = document.createElement('button');
+    cust.className = 'btn btn-gold fam-btn';
+    cust.textContent = '🎨';
+    cust.title = 'Customize';
+    cust.addEventListener('click', () => { Sound.pop(); onCustomize(); });
+    btns.appendChild(cust);
+    if (onRename) {
+      const ren = document.createElement('button');
+      ren.className = 'btn btn-outline fam-btn';
+      ren.textContent = '✏️';
+      ren.title = 'Rename';
+      ren.addEventListener('click', () => { Sound.pop(); onRename(); });
+      btns.appendChild(ren);
+    }
+    card.append(art, info, btns);
+    return card;
+  },
+
+  /* --------------------- adopt / rename name prompt ----------------------- */
+
+  /** Modal asking the player to name a freshly-photographed stray. */
+  promptAdoptName(breed, stars, rarity, done) {
+    const ov = document.getElementById('name-modal');
+    const art = document.getElementById('name-art');
+    art.innerHTML = '';
+    art.appendChild(Assets.strayNode(breed, '110px'));
+    document.getElementById('name-title').textContent = `You made a friend!`;
+    document.getElementById('name-sub').textContent =
+      `A ${breed.name} wants to join your Cat Family. What's their name?`;
+    const input = document.getElementById('name-input');
+    input.value = '';
+
+    document.getElementById('name-random').onclick = () => {
+      Sound.pop();
+      input.value = NAME_SUGGESTIONS[Math.floor(Math.random() * NAME_SUGGESTIONS.length)];
+    };
+    document.getElementById('name-ok').onclick = () => {
+      const name = (input.value.trim() || breed.name).slice(0, 20);
+      State.adoptStray({ name, breedId: breed.id, rarity, stars });
+      ov.classList.add('hidden');
+      Sound.purr();
+      this.toast(`${name} joined your Cat Family! 🏡`);
+      this.updateHud();
+      done && done();
+    };
+    ov.classList.remove('hidden');
+    setTimeout(() => input.focus(), 250);
+  },
+
+  /** Rename an adopted family cat. */
+  promptRename(fam) {
+    const ov = document.getElementById('name-modal');
+    const breed = BREEDS.find((b) => b.id === fam.breedId);
+    const art = document.getElementById('name-art');
+    art.innerHTML = '';
+    art.appendChild(Assets.strayNode(breed, '110px',
+      Object.assign({}, fam.colors, { collar: fam.collar, accessory: fam.accessory })));
+    document.getElementById('name-title').textContent = `Rename ${fam.name}`;
+    document.getElementById('name-sub').textContent = 'New name, same attitude.';
+    const input = document.getElementById('name-input');
+    input.value = fam.name;
+
+    document.getElementById('name-random').onclick = () => {
+      Sound.pop();
+      input.value = NAME_SUGGESTIONS[Math.floor(Math.random() * NAME_SUGGESTIONS.length)];
+    };
+    document.getElementById('name-ok').onclick = () => {
+      fam.name = (input.value.trim() || fam.name).slice(0, 20);
+      State.save();
+      ov.classList.add('hidden');
+      this.toast('Renamed! They pretend not to care. 😼');
+      this.renderFamily();
+    };
+    ov.classList.remove('hidden');
+  },
+
+  /* ---------------------- customize (colors & style) ---------------------- */
+
+  /**
+   * Customizer modal. Pass { fam } for an adopted stray (full recolor) or
+   * { starId } for Minnie/Biscuit (collar + accessory only — you don't get
+   * to repaint the real cats, they have a brand to maintain).
+   */
+  openCustomizer(target) {
+    const ov = document.getElementById('custom-modal');
+    const isStar = !!target.starId;
+    const fam = target.fam;
+    const breed = isStar ? null : BREEDS.find((b) => b.id === fam.breedId);
+
+    // working copy (only saved on ✓)
+    const work = isStar
+      ? Object.assign({ collar: null, accessory: 'none' }, State.data.famCustom[target.starId])
+      : Object.assign({ collar: fam.collar, accessory: fam.accessory }, fam.colors);
+
+    document.getElementById('custom-title').textContent =
+      isStar ? `Style ${CATS[target.starId].name}` : `Customize ${fam.name}`;
+
+    const preview = document.getElementById('custom-preview');
+    const paint = () => {
+      preview.innerHTML = '';
+      preview.appendChild(isStar
+        ? Assets.catNode(
+            { catId: target.starId, sprite: ASSET_MANIFEST.catSprite(target.starId, 'friendly'),
+              catName: CATS[target.starId].name, moodName: 'Friendly', emoji: '⭐' },
+            '130px', work)
+        : Assets.strayNode(breed, '130px', work));
+    };
+    paint();
+
+    const rows = document.getElementById('custom-rows');
+    rows.innerHTML = '';
+
+    const swatchRow = (label, colors, key, allowNone) => {
+      const row = document.createElement('div');
+      row.className = 'custom-row';
+      row.innerHTML = `<span class="custom-label">${label}</span>`;
+      const box = document.createElement('div');
+      box.className = 'swatches';
+      if (allowNone) {
+        const none = document.createElement('button');
+        none.className = 'swatch none' + (!work[key] ? ' active' : '');
+        none.textContent = '✕';
+        none.addEventListener('click', () => { work[key] = null; Sound.pop(); rebuild(); });
+        box.appendChild(none);
+      }
+      colors.forEach((c) => {
+        const b = document.createElement('button');
+        b.className = 'swatch' + (work[key] === c ? ' active' : '');
+        b.style.background = c;
+        b.addEventListener('click', () => { work[key] = c; Sound.pop(); rebuild(); });
+        box.appendChild(b);
+      });
+      row.appendChild(box);
+      return row;
+    };
+
+    const accRow = () => {
+      const row = document.createElement('div');
+      row.className = 'custom-row';
+      row.innerHTML = `<span class="custom-label">Accessory</span>`;
+      const box = document.createElement('div');
+      box.className = 'swatches';
+      ACCESSORIES.forEach((a) => {
+        const b = document.createElement('button');
+        b.className = 'swatch acc' + (work.accessory === a.id ? ' active' : '');
+        b.textContent = a.emoji;
+        b.title = a.name;
+        b.addEventListener('click', () => { work.accessory = a.id; Sound.pop(); rebuild(); });
+        box.appendChild(b);
+      });
+      row.appendChild(box);
+      return row;
+    };
+
+    const rebuild = () => {
+      rows.innerHTML = '';
+      if (!isStar) {
+        rows.appendChild(swatchRow('Coat', CUSTOM_COLORS, 'body'));
+        rows.appendChild(swatchRow('Markings', CUSTOM_COLORS, 'patch'));
+      }
+      rows.appendChild(swatchRow('Collar', COLLAR_COLORS, 'collar', true));
+      rows.appendChild(accRow());
+      paint();
+    };
+    rebuild();
+
+    document.getElementById('custom-reset').onclick = () => {
+      Sound.pop();
+      delete work.body; delete work.patch;
+      work.collar = null; work.accessory = 'none';
+      rebuild();
+    };
+    document.getElementById('custom-ok').onclick = () => {
+      if (isStar) {
+        State.data.famCustom[target.starId] = { collar: work.collar, accessory: work.accessory };
+      } else {
+        fam.collar = work.collar;
+        fam.accessory = work.accessory;
+        fam.colors = {};
+        if (work.body) fam.colors.body = work.body;
+        if (work.patch) fam.colors.patch = work.patch;
+      }
+      State.save();
+      ov.classList.add('hidden');
+      Sound.coin();
+      this.toast('Lookin\' good! ✨');
+      this.renderFamily();
+    };
+    document.getElementById('custom-cancel').onclick = () => ov.classList.add('hidden');
+    ov.classList.remove('hidden');
+  },
+
+  /* ----------------- rare befriend celebration (the flex) ----------------- */
+
+  /**
+   * Full-screen celebration for rare/legendary friends: spinning light rays,
+   * confetti rain, sparkle burst, chunky banner. `node` = cat art to show.
+   */
+  rareCelebration(rarity, node, done) {
+    const ov = document.getElementById('celebrate');
+    const isLegend = rarity === 'legendary';
+    ov.className = 'overlay celebrate ' + (isLegend ? 'legend' : 'rare');
+
+    document.getElementById('celebrate-title').textContent =
+      isLegend ? '🌟 LEGENDARY FRIEND 🌟' : '✨ RARE FRIEND ✨';
+
+    const artBox = document.getElementById('celebrate-art');
+    artBox.innerHTML = '';
+    if (node) artBox.appendChild(node);
+
+    // confetti rain
+    const confBox = document.getElementById('celebrate-confetti');
+    confBox.innerHTML = '';
+    const bits = ['🎉', '✨', '⭐', '💖', '🐾', '🎊'];
+    for (let i = 0; i < 34; i++) {
+      const c = document.createElement('span');
+      c.className = 'confetti';
+      c.textContent = bits[i % bits.length];
+      c.style.left = `${Math.random() * 100}%`;
+      c.style.animationDelay = `${Math.random() * 1.2}s`;
+      c.style.animationDuration = `${1.6 + Math.random() * 1.4}s`;
+      c.style.fontSize = `${14 + Math.random() * 20}px`;
+      confBox.appendChild(c);
+    }
+
+    Sound.sparkle();
+    setTimeout(() => Sound.levelUp(), 300);
+    ov.classList.remove('hidden');
+
+    const finish = () => {
+      ov.classList.add('hidden');
+      done && done();
+    };
+    document.getElementById('celebrate-close').onclick = () => { Sound.pop(); finish(); };
+    // auto-dismiss so it never blocks play
+    clearTimeout(this._celebTimer);
+    this._celebTimer = setTimeout(() => {
+      if (!ov.classList.contains('hidden')) finish();
+    }, 4200);
   },
 
   /* -------------------------------- Shop --------------------------------- */
@@ -330,12 +635,15 @@ const UI = {
 
     const s = d.stats;
     document.getElementById('prof-stats').innerHTML = `
-      <div class="stat"><b>${s.catches}</b><span>cats caught</span></div>
+      <div class="stat"><b>${s.catches}</b><span>befriended</span></div>
       <div class="stat"><b>${s.legendary}</b><span>legendary</span></div>
       <div class="stat"><b>${s.encounters}</b><span>encounters</span></div>
-      <div class="stat"><b>${s.escapes}</b><span>escapes</span></div>
+      <div class="stat"><b>${s.snaps}</b><span>pics snapped</span></div>
+      <div class="stat"><b>${s.straysAdopted}</b><span>strays adopted</span></div>
       <div class="stat"><b>${s.coinsEarned}</b><span>coins earned</span></div>
-      <div class="stat"><b>${ALL_FORMS.filter((f) => d.collection[f.key]).length}/24</b><span>Cat-alog</span></div>`;
+      <div class="stat"><b>${s.escapes}</b><span>got away</span></div>
+      <div class="stat"><b>${ALL_FORMS.filter((f) => d.collection[f.key]).length}/24</b><span>Cat-alog</span></div>
+      <div class="stat"><b>${2 + d.family.length}</b><span>family cats</span></div>`;
   },
 
   /* ------------------------------ Settings ------------------------------- */

@@ -27,10 +27,17 @@ function defaultState() {
     treatsOwned: { kibble: true, salmon: false, churu: false },
     selectedTreat: 'kibble',
     items: { laser: 0, lure: 0 },   // consumable counts
-    stats: { catches: 0, encounters: 0, escapes: 0, legendary: 0, coinsEarned: 0 },
+    stats: { catches: 0, encounters: 0, escapes: 0, legendary: 0, coinsEarned: 0,
+             snaps: 0, straysAdopted: 0 },
     streak: { count: 0, lastDay: null },
     dailyBonusDay: null,         // last day the double-coin bonus was used
     currentZone: 'backyard',
+    // Cat Family: adopted strays + custom looks for the two stars
+    family: [],                  // [{id,name,breedId,rarity,stars,colors,collar,accessory,adoptedAt}]
+    famCustom: {
+      minnie:  { collar: null, accessory: 'none' },
+      biscuit: { collar: null, accessory: 'none' },
+    },
   };
 }
 
@@ -41,8 +48,14 @@ const State = {
     try {
       const raw = localStorage.getItem(SAVE_KEY);
       if (raw) {
-        // merge over defaults so new fields survive old saves
-        this.data = Object.assign(defaultState(), JSON.parse(raw));
+        // merge over defaults so new fields survive old saves — nested
+        // objects get their own merge so new stat keys don't vanish
+        const def = defaultState();
+        const saved = JSON.parse(raw);
+        ['stats', 'items', 'treatsOwned', 'streak', 'famCustom'].forEach((k) => {
+          if (saved[k]) saved[k] = Object.assign(def[k], saved[k]);
+        });
+        this.data = Object.assign(def, saved);
       }
     } catch (e) { /* corrupted save → start fresh */ }
     this.touchStreak();
@@ -94,5 +107,21 @@ const State = {
 
   zoneUnlocked(zoneId) {
     return this.data.level >= (CONFIG.levels.zoneUnlocks[zoneId] || 1);
+  },
+
+  /** Adopt a stray into the Cat Family. Returns the new family entry. */
+  adoptStray({ name, breedId, rarity, stars }) {
+    const entry = {
+      id: `fam_${Date.now()}_${Math.floor(Math.random() * 1e5)}`,
+      name, breedId, rarity, stars,
+      colors: {},                 // player recolors land here
+      collar: null,
+      accessory: 'none',
+      adoptedAt: todayStr(),
+    };
+    this.data.family.push(entry);
+    this.data.stats.straysAdopted += 1;
+    this.save();
+    return entry;
   },
 };

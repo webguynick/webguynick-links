@@ -7,6 +7,18 @@ Plain HTML + CSS + vanilla JS. No build tools, no dependencies, no audio files
 (all SFX are synthesized with the Web Audio API). Installs to a phone home
 screen and plays offline.
 
+Two ways to make friends:
+
+- **Minnie & Biscuit moods** — flick a treat (swipe physics) to BEFRIEND them
+  and fill the 24-form Cat-alog.
+- **Strays** 📸 — unknown neighborhood cats (look for the camera badge on the
+  map). Photograph them: tap SNAP when they're centered in the viewfinder and
+  the ring is small. Win their trust, **name them**, and they join your **Cat
+  Family**, where you can recolor their coat, add collars, and pick
+  accessories. 12 breeds across 4 rarity tiers — Tortoiseshell pays a 2×
+  rare-breed coin bonus, and rare/legendary friends trigger a full-screen
+  rays-and-confetti celebration.
+
 ## Run it locally
 
 Any static file server works. From this folder:

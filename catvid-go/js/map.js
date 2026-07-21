@@ -207,15 +207,28 @@ const GameMap = {
     if (document.hidden) return; // don't pile up spawns in background tabs
 
     const rarity = this.rollRarity();
-    const pool = ALL_FORMS.filter((f) => f.rarity === rarity);
-    const form = pool[Math.floor(Math.random() * pool.length)];
+
+    // stray (photograph & adopt) or one of the stars in a mood (treat toss)?
+    let subject;
+    if (Math.random() < CONFIG.strays.spawnChance) {
+      const pool = BREEDS.filter((b) => b.rarity === rarity);
+      subject = { kind: 'stray', breed: pool[Math.floor(Math.random() * pool.length)], rarity };
+    } else {
+      const pool = ALL_FORMS.filter((f) => f.rarity === rarity);
+      subject = { kind: 'mood', form: pool[Math.floor(Math.random() * pool.length)], rarity };
+    }
 
     const el = document.createElement('div');
     const aura = CONFIG.rarity[rarity].aura;
     el.className = 'map-cat wiggle' + (aura ? ` aura-${aura}` : '');
     el.style.left = `${8 + Math.random() * 84}%`;
     el.style.top = `${10 + Math.random() * 80}%`;
-    el.appendChild(Assets.catNode(form, '52px'));
+    el.appendChild(subject.kind === 'stray'
+      ? Assets.strayNode(subject.breed, '52px')
+      : Assets.catNode(subject.form, '52px'));
+    if (subject.kind === 'stray') {
+      el.insertAdjacentHTML('beforeend', '<span class="map-cat__snap">📸</span>');
+    }
     if (rarity === 'legendary') el.classList.add('sparkle');
 
     // tap (not drag) opens the encounter — stopPropagation keeps the map's
@@ -233,11 +246,11 @@ const GameMap = {
       if (moved < 12) {
         Sound.pop();
         this.removeCat(entry);
-        Encounter.open(form);
+        Encounter.open(subject);
       }
     });
 
-    const entry = { el, form, timer: setTimeout(() => this.removeCat(entry, true), CONFIG.spawn.despawnMs) };
+    const entry = { el, subject, timer: setTimeout(() => this.removeCat(entry, true), CONFIG.spawn.despawnMs) };
     this.cats.push(entry);
     this.world.appendChild(el);
   },

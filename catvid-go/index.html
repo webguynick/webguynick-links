@@ -64,6 +64,19 @@
       <div id="catalog-grid"></div>
     </section>
 
+    <!-- CAT FAMILY -->
+    <section id="screen-family" class="screen">
+      <div class="screen-head">
+        <h2>Cat Family</h2>
+        <span id="family-count" class="pill"></span>
+      </div>
+      <p id="family-empty" class="family-empty hidden">
+        📸 Spot a stray on the map (look for the camera badge), snap a great pic,
+        and they'll join the family!
+      </p>
+      <div id="family-list"></div>
+    </section>
+
     <!-- SHOP -->
     <section id="screen-shop" class="screen">
       <div class="screen-head"><h2>Treat Shop</h2></div>
@@ -106,16 +119,22 @@
       <div id="enc-misses" class="enc-misses"></div>
     </div>
     <div id="enc-stage">
-      <div class="enc-cat-wrap">
+      <div id="enc-cat-wrap" class="enc-cat-wrap">
         <div id="enc-ring"></div>
         <div id="enc-cat" class="enc-cat idle"></div>
       </div>
+      <div id="enc-viewfinder" class="hidden">
+        <span class="vf-corner tl"></span><span class="vf-corner tr"></span>
+        <span class="vf-corner bl"></span><span class="vf-corner br"></span>
+      </div>
+      <div id="enc-flash" class="hidden"></div>
       <div id="enc-treat"></div>
       <div id="enc-banner" class="hidden"></div>
       <div class="enc-hint">flick the treat at the cat! small ring = better catch</div>
     </div>
     <div class="enc-controls">
       <div id="enc-treat-select"></div>
+      <button id="enc-snap" class="btn btn-coral snap-btn hidden">📸 SNAP</button>
       <button id="enc-laser" class="btn btn-outline">🔴 ×0</button>
       <button id="enc-flee" class="btn btn-outline">Run 💨</button>
     </div>
@@ -133,12 +152,52 @@
     </div>
   </div>
 
+  <!-- ====================== NAME A NEW FRIEND ======================== -->
+  <div id="name-modal" class="overlay modal-scrim hidden">
+    <div class="modal-card">
+      <div id="name-art" class="modal-art"></div>
+      <h2 id="name-title">You made a friend!</h2>
+      <p id="name-sub" class="modal-sub"></p>
+      <div class="name-row">
+        <input id="name-input" type="text" maxlength="20" placeholder="Name your cat…" autocomplete="off">
+        <button id="name-random" class="btn btn-gold" title="Surprise me">🎲</button>
+      </div>
+      <button id="name-ok" class="btn btn-coral btn-big">WELCOME HOME 🏡</button>
+    </div>
+  </div>
+
+  <!-- ======================== CUSTOMIZE CAT =========================== -->
+  <div id="custom-modal" class="overlay modal-scrim hidden">
+    <div class="modal-card">
+      <h2 id="custom-title">Customize</h2>
+      <div id="custom-preview" class="modal-art big"></div>
+      <div id="custom-rows"></div>
+      <div class="custom-actions">
+        <button id="custom-reset" class="btn btn-outline">↩️ Reset</button>
+        <button id="custom-cancel" class="btn btn-outline">Cancel</button>
+        <button id="custom-ok" class="btn btn-coral">Save ✓</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================== RARE FRIEND CELEBRATION ======================= -->
+  <div id="celebrate" class="overlay celebrate hidden">
+    <div class="celebrate-rays"></div>
+    <div id="celebrate-confetti"></div>
+    <div class="celebrate-inner">
+      <h2 id="celebrate-title">✨ RARE FRIEND ✨</h2>
+      <div class="celebrate-ring"><div id="celebrate-art"></div></div>
+      <button id="celebrate-close" class="btn btn-gold btn-big">AWESOME 🐾</button>
+    </div>
+  </div>
+
   <!-- toast + tab bar + footer -->
   <div id="toast"></div>
 
   <nav id="tabbar">
     <button class="tab active" data-screen="map"><span class="paw-icon"></span>Map</button>
     <button class="tab" data-screen="catalog"><span class="paw-icon"></span>Cat-alog</button>
+    <button class="tab" data-screen="family"><span class="paw-icon"></span>Family</button>
     <button class="tab" data-screen="shop"><span class="paw-icon"></span>Shop</button>
     <button class="tab" data-screen="profile"><span class="paw-icon"></span>Profile</button>
   </nav>
@@ -148,6 +207,7 @@
   <script src="js/config.js"></script>
   <script src="js/state.js"></script>
   <script src="js/audio.js"></script>
+  <script src="js/catsvg.js"></script>
   <script src="js/assets.js"></script>
   <script src="js/map.js"></script>
   <script src="js/encounter.js"></script>

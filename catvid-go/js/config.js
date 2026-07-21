@@ -66,6 +66,10 @@ const ASSET_MANIFEST = {
   },
   // cat sprite path builder: assets/cats/<catId>_<moodId>.png
   catSprite: (catId, moodId) => `assets/cats/${catId}_${moodId}.png`,
+  // optional stray breed art: assets/cats/stray_<breedId>.png (512x512).
+  // note: the built-in SVG strays support player recoloring; real art is
+  // used as-is (accessories still overlay on top).
+  straySprite: (breedId) => `assets/cats/stray_${breedId}.png`,
 };
 
 /* --------------------------------------------------------------------------
@@ -138,7 +142,24 @@ const CONFIG = {
 
   /* --- Daily bonus / streak ---------------------------------------------- */
   daily: {
-    firstCatchCoinMult: 2,   // first catch of the day = double coins
+    firstCatchCoinMult: 2,   // first befriend of the day = double coins
+  },
+
+  /* --- Strays & the photo (snap) mechanic --------------------------------
+     Strays are unknown neighborhood cats. Instead of flicking a treat you
+     PHOTOGRAPH them: tap the shutter when the cat is centered and the
+     attention ring is small. A great photo wins their trust — then you
+     name them and they join your Cat Family.                               */
+  strays: {
+    spawnChance: 0.40,       // fraction of map spawns that are strays
+    shots: 3,                // photos per encounter before the stray bolts
+    // befriend chance = rarity baseCatch shifted by photo quality:
+    //   chance = baseCatch - qualityShift + quality * qualitySwing
+    qualityShift: 0.18,
+    qualitySwing: 0.55,
+    starCoinBonus: 10,       // extra coins per photo-quality star
+    wanderIntervalMs: [1100, 2100],  // stray picks a new spot this often
+    wanderSpeed: 3.2,        // lerp speed toward the new spot (per second)
   },
 };
 
@@ -250,6 +271,75 @@ CAT_IDS.forEach((catId) => {
     });
   });
 });
+
+/* --------------------------------------------------------------------------
+   STRAY BREEDS — unknown cats you photograph, name, and adopt.
+   `bonus` multiplies the rarity's coin reward (rare breeds pay extra!).
+   `look` feeds the built-in SVG cat renderer (also fully recolorable by the
+   player after adoption). Optional real art slot: assets/cats/stray_<id>.png
+   -------------------------------------------------------------------------- */
+const BREEDS = [
+  /* ------ COMMON ------ */
+  { id: 'orange_tabby', name: 'Orange Tabby', rarity: 'common', bonus: 1.0, emoji: '🧡',
+    look: { pattern: 'tabby', body: '#f0a75a', patch: '#d9822b', eyes: '#e8a33d' },
+    desc: 'One shared brain cell, and today is his day to hold it.' },
+  { id: 'grey_tabby', name: 'Grey Tabby', rarity: 'common', bonus: 1.0, emoji: '🩶',
+    look: { pattern: 'tabby', body: '#a8adb8', patch: '#7c828f', eyes: '#8fbf5a' },
+    desc: 'Standard-issue neighborhood surveillance unit. Sees everything.' },
+  { id: 'void', name: 'Void Cat', rarity: 'common', bonus: 1.0, emoji: '🖤',
+    look: { pattern: 'solid', body: '#33302e', patch: '#26231f', eyes: '#f2c14e' },
+    desc: 'A cat-shaped hole in reality. Blinks, occasionally.' },
+  /* ------ UNCOMMON ------ */
+  { id: 'siamese', name: 'Siamese', rarity: 'uncommon', bonus: 1.2, emoji: '🤎',
+    look: { pattern: 'points', body: '#efe0c8', patch: '#7a5b48', eyes: '#5aa7d6' },
+    desc: 'Has opinions. Will be sharing all of them, loudly, at length.' },
+  { id: 'russian_blue', name: 'Russian Blue', rarity: 'uncommon', bonus: 1.2, emoji: '💙',
+    look: { pattern: 'solid', body: '#8d9bab', patch: '#6f7d8e', eyes: '#6fbf73' },
+    desc: 'Aristocrat energy. Judges your furniture in a fancy accent.' },
+  { id: 'snowshoe', name: 'Snowshoe', rarity: 'uncommon', bonus: 1.2, emoji: '🤍',
+    look: { pattern: 'points', body: '#e8e4dc', patch: '#8a94a5', eyes: '#5aa7d6' },
+    desc: 'Wearing little white socks. Yes, everyone has noticed. Yes, it is a lot.' },
+  /* ------ RARE ------ */
+  { id: 'tortie', name: 'Tortoiseshell', rarity: 'rare', bonus: 2.0, emoji: '🐢',
+    look: { pattern: 'tortie', body: '#3d2f26', patch: '#e08a3c', eyes: '#e8a33d' },
+    desc: 'Tortitude™ detected. 60% chaos, 40% attitude, 100% in charge now.' },
+  { id: 'calico', name: 'Calico', rarity: 'rare', bonus: 1.5, emoji: '🍊',
+    look: { pattern: 'calico', body: '#f5f0e8', patch: '#e08a3c', patch2: '#3a3531', eyes: '#8fbf5a' },
+    desc: 'Three colors, three personalities, zero warning which one you get.' },
+  { id: 'bengal', name: 'Bengal', rarity: 'rare', bonus: 1.5, emoji: '🐆',
+    look: { pattern: 'rosettes', body: '#e3b268', patch: '#6b4a24', eyes: '#8fbf5a' },
+    desc: 'A tiny leopard with a gym membership and unfinished business.' },
+  /* ------ LEGENDARY ------ */
+  { id: 'maine_coon', name: 'Maine Coon', rarity: 'legendary', bonus: 2.0, emoji: '🦁',
+    look: { pattern: 'floof', body: '#b98a5e', patch: '#8a5f3a', eyes: '#e8a33d' },
+    desc: 'Approximately the size of a school bus. Chirps like a tiny bird.' },
+  { id: 'sphynx', name: 'Sphynx', rarity: 'legendary', bonus: 2.0, emoji: '👽',
+    look: { pattern: 'sphynx', body: '#e5b9a8', patch: '#c9998a', eyes: '#5aa7d6' },
+    desc: 'Feels like a warm peach. Stares directly into your soul, rent free.' },
+  { id: 'scottish_fold', name: 'Scottish Fold', rarity: 'legendary', bonus: 2.0, emoji: '🥞',
+    look: { pattern: 'fold', body: '#c8cad1', patch: '#9fa3ad', eyes: '#e8a33d' },
+    desc: 'Ears folded like tiny pancakes. Sits like a person. Owes taxes, probably.' },
+];
+
+/* Name ideas for the "surprise me" button when adopting a stray ------------- */
+const NAME_SUGGESTIONS = [
+  'Beans', 'Toast', 'Pickles', 'Sir Meowington', 'Waffles', 'Noodle', 'Mochi',
+  'Gravy', 'Pretzel', 'Miss Whiskers', 'Turbo', 'Meatball', 'Clementine',
+  'Biscotti', 'Peaches', 'Goblin', 'Nacho', 'Dumpling', 'Ziggy', 'Marbles',
+  'Captain Fuzz', 'Tater Tot', 'Pumpkin', 'Espresso', 'Jellybean', 'Socks',
+];
+
+/* Customization palettes (Family screen) ------------------------------------ */
+const CUSTOM_COLORS = ['#f0a75a', '#d9822b', '#a8adb8', '#7c828f', '#33302e', '#f5f0e8',
+                       '#b98a5e', '#8a5f3a', '#e5b9a8', '#8d9bab', '#e08a3c', '#f4b942'];
+const COLLAR_COLORS  = ['#FF6F61', '#F4B942', '#5aa7d6', '#8fbf5a', '#b57edc', '#2B2826'];
+const ACCESSORIES = [
+  { id: 'none',   name: 'None',    emoji: '🚫' },
+  { id: 'bow',    name: 'Bow',     emoji: '🎀' },
+  { id: 'bell',   name: 'Bell',    emoji: '🔔' },
+  { id: 'flower', name: 'Flower',  emoji: '🌸' },
+  { id: 'tophat', name: 'Top Hat', emoji: '🎩' },
+];
 
 /* Map zones (drawn with CSS if no tile art present) ------------------------ */
 const ZONES = [

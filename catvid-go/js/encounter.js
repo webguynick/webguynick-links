@@ -1,60 +1,93 @@
 /* ==========================================================================
    CatVid GO — encounter.js
-   Full-screen encounter: idle cat up top, shrinking/growing attention ring,
-   flick the treat with real physics (swipe velocity + gravity arc).
+   Two encounter styles:
+   • MOOD (Minnie/Biscuit): flick a treat with swipe physics → BEFRIEND them
+   • STRAY (photo mode): the cat wanders — tap the shutter when it's centered
+     and the attention ring is small. A great pic wins its trust, then you
+     NAME it and it joins your Cat Family.
    ========================================================================== */
 
 const Encounter = {
-  form: null,          // the cat form being encountered
-  misses: 0,
-  ringPhase: 0,        // oscillator phase for the attention ring
-  ringFrozen: false,   // laser pointer effect (one throw)
+  subject: null,       // { kind:'mood', form } | { kind:'stray', breed, rarity }
+  misses: 0,           // treat misses OR photos used
+  ringPhase: 0,
+  ringFrozen: false,   // laser pointer effect (one throw / one snap)
   rafId: null,
   lastTs: 0,
-  throwing: null,      // active projectile state or null
+  throwing: null,      // active treat projectile or null
   resolved: false,
+  stray: null,         // wander state for photo mode: {x,y,tx,ty,nextAt}
 
-  els: {},             // cached DOM nodes
+  els: {},
 
   cache() {
-    ['encounter', 'enc-cat', 'enc-ring', 'enc-treat', 'enc-name', 'enc-stars',
-     'enc-misses', 'enc-banner', 'enc-stage', 'enc-treat-select', 'enc-laser', 'enc-flee']
+    ['encounter', 'enc-cat', 'enc-cat-wrap', 'enc-ring', 'enc-treat', 'enc-name',
+     'enc-stars', 'enc-misses', 'enc-banner', 'enc-stage', 'enc-treat-select',
+     'enc-laser', 'enc-flee', 'enc-snap', 'enc-viewfinder', 'enc-flash']
       .forEach((id) => { this.els[id] = document.getElementById(id); });
   },
 
-  open(form) {
+  isStray() { return this.subject.kind === 'stray'; },
+  rarity() { return CONFIG.rarity[this.subject.rarity || this.subject.form.rarity]; },
+
+  open(subject) {
     if (!this.els.encounter) this.cache();
-    this.form = form;
+    this.subject = subject;
     this.misses = 0;
     this.ringFrozen = false;
     this.throwing = null;
     this.resolved = false;
     this.ringPhase = Math.random() * Math.PI * 2;
 
-    const r = CONFIG.rarity[form.rarity];
     State.data.stats.encounters += 1;
     State.save();
 
-    // header: name + gold stars
-    this.els['enc-name'].textContent = `${form.catName} · ${form.moodName}`;
-    this.els['enc-stars'].textContent = '★'.repeat(r.stars);
-    this.updateMisses();
+    const stray = this.isStray();
+    const r = this.rarity();
 
-    // cat sprite (idle bob via CSS)
+    // header
+    this.els['enc-name'].textContent = stray
+      ? `Stray · ${subject.breed.name}`
+      : `${subject.form.catName} · ${subject.form.moodName}`;
+    this.els['enc-stars'].textContent = '★'.repeat(r.stars);
+
+    // cat sprite
     const catBox = this.els['enc-cat'];
     catBox.innerHTML = '';
-    catBox.appendChild(Assets.catNode(form, '150px'));
-    catBox.className = 'enc-cat idle' + (form.rarity === 'legendary' ? ' legendary-glow' : '');
+    catBox.appendChild(stray
+      ? Assets.strayNode(subject.breed, '150px')
+      : Assets.catNode(subject.form, '150px'));
+    const legendary = (stray ? subject.rarity : subject.form.rarity) === 'legendary';
+    catBox.className = 'enc-cat idle' + (legendary ? ' legendary-glow' : '');
 
     this.els['enc-banner'].classList.add('hidden');
 
-    // unhide FIRST so the stage has real dimensions, then lay out the treat
+    // unhide FIRST so the stage has real dimensions, then lay out controls
     this.els.encounter.classList.remove('hidden');
     document.getElementById('tabbar').classList.add('hidden');
+
+    // mode-specific chrome
+    this.els.encounter.classList.toggle('photo-mode', stray);
+    this.els['enc-viewfinder'].classList.toggle('hidden', !stray);
+    this.els['enc-snap'].classList.toggle('hidden', !stray);
+    this.els['enc-treat'].style.display = stray ? 'none' : '';
+    this.els['enc-treat-select'].style.display = stray ? 'none' : '';
+    document.querySelector('.enc-hint').textContent = stray
+      ? '📸 snap when the cat is centered & the ring is small!'
+      : 'flick the treat at the cat! small ring = better catch';
+
     this.renderTreatBar();
-    this.resetTreat();
+    if (stray) {
+      this.initStrayWander();
+      this.els['enc-snap'].onclick = () => this.takePhoto();
+    } else {
+      this.centerCatWrap();
+      this.resetTreat();
+    }
+    this.updateMisses();
+
     Sound.meow();
-    if (form.rarity === 'legendary') Sound.sparkle();
+    if (legendary) Sound.sparkle();
 
     this.lastTs = 0;
     cancelAnimationFrame(this.rafId);
@@ -69,8 +102,14 @@ const Encounter = {
   },
 
   updateMisses() {
+    if (this.isStray()) {
+      const left = CONFIG.strays.shots - this.misses;
+      this.els['enc-misses'].textContent = '📷'.repeat(left) + '·'.repeat(this.misses);
+      return;
+    }
     const max = CONFIG.catchRules.maxMisses;
-    const isRarePlus = this.form.rarity === 'rare' || this.form.rarity === 'legendary';
+    const rar = this.subject.form.rarity;
+    const isRarePlus = rar === 'rare' || rar === 'legendary';
     this.els['enc-misses'].textContent = isRarePlus
       ? '❌'.repeat(this.misses) + '·'.repeat(Math.max(0, max - this.misses))
       : '';
@@ -108,7 +147,7 @@ const Encounter = {
       State.save();
       this.ringFrozen = true;
       Sound.pop();
-      UI.toast('Ring frozen for one throw! 🔴');
+      UI.toast(this.isStray() ? 'Ring frozen for one snap! 🔴' : 'Ring frozen for one throw! 🔴');
       this.renderTreatBar();
     };
 
@@ -119,30 +158,97 @@ const Encounter = {
 
   tick(ts) {
     if (!this.lastTs) this.lastTs = ts;
-    const dt = Math.min(0.05, (ts - this.lastTs) / 1000); // clamp long frames
+    const dt = Math.min(0.05, (ts - this.lastTs) / 1000);
     this.lastTs = ts;
 
-    // 1) attention ring: sinusoidal shrink/grow, speed scales with rarity
+    // 1) attention ring
     if (!this.ringFrozen) {
-      this.ringPhase += dt * CONFIG.rarity[this.form.rarity].ringSpeed * 2.2;
+      this.ringPhase += dt * this.rarity().ringSpeed * 2.2;
     }
     const s = this.ringScale();
     this.els['enc-ring'].style.transform = `translate(-50%, -50%) scale(${s})`;
 
-    // 2) treat projectile physics
+    // 2) mode physics
+    if (this.stray && !this.resolved) this.stepWander(dt, ts);
     if (this.throwing) this.stepThrow(dt);
 
     if (!this.resolved) this.rafId = requestAnimationFrame((t) => this.tick(t));
   },
 
-  /** Ring scale oscillates 0.35 → 1.0. Smaller = better catch bonus. */
-  ringScale() {
-    return 0.675 + 0.325 * Math.sin(this.ringPhase);
+  ringScale() { return 0.675 + 0.325 * Math.sin(this.ringPhase); },
+  ringTightness() { return 1 - (this.ringScale() - 0.35) / 0.65; },
+
+  /* ----------------------- photo mode: wandering cat --------------------- */
+
+  centerCatWrap() {
+    const wrap = this.els['enc-cat-wrap'];
+    wrap.style.left = '50%';
+    wrap.style.top = '26%';
+    this.stray = null;
   },
 
-  /** 0 (ring huge) → 1 (ring at its smallest). */
-  ringTightness() {
-    return 1 - (this.ringScale() - 0.35) / 0.65;
+  initStrayWander() {
+    const stage = this.els['enc-stage'];
+    const cx = stage.clientWidth / 2, cy = stage.clientHeight * 0.34;
+    this.stray = { x: cx, y: cy, tx: cx, ty: cy, nextAt: 0 };
+  },
+
+  stepWander(dt, ts) {
+    const st = this.stray;
+    const stage = this.els['enc-stage'];
+    const [lo, hi] = CONFIG.strays.wanderIntervalMs;
+
+    if (ts >= st.nextAt) {
+      // pick a new lounging spot in the upper 2/3 of the stage
+      st.tx = stage.clientWidth * (0.22 + Math.random() * 0.56);
+      st.ty = stage.clientHeight * (0.15 + Math.random() * 0.42);
+      st.nextAt = ts + lo + Math.random() * (hi - lo);
+    }
+    const k = Math.min(1, CONFIG.strays.wanderSpeed * dt);
+    st.x += (st.tx - st.x) * k;
+    st.y += (st.ty - st.y) * k;
+
+    const wrap = this.els['enc-cat-wrap'];
+    wrap.style.left = `${st.x}px`;
+    wrap.style.top = `${st.y}px`;
+  },
+
+  /** Shutter press: quality = centering in the viewfinder + ring tightness. */
+  takePhoto() {
+    if (this.resolved || !this.stray) return;
+    const stage = this.els['enc-stage'];
+
+    // camera flash + shutter sfx
+    const flash = this.els['enc-flash'];
+    flash.classList.remove('hidden');
+    flash.classList.remove('go'); void flash.offsetWidth; // restart animation
+    flash.classList.add('go');
+    Sound.pop();
+    State.data.stats.snaps += 1;
+    State.save();
+
+    const cx = stage.clientWidth / 2, cy = stage.clientHeight * 0.34;
+    const dist = Math.hypot(this.stray.x - cx, this.stray.y - cy);
+    const maxDist = Math.hypot(stage.clientWidth * 0.5, stage.clientHeight * 0.4);
+    const centering = Math.max(0, 1 - dist / (maxDist * 0.55));
+    const quality = 0.55 * centering + 0.45 * this.ringTightness();
+    const stars = quality >= 0.75 ? 3 : quality >= 0.45 ? 2 : 1;
+    this.ringFrozen = false; // a laser freeze is spent on this snap
+
+    const S = CONFIG.strays;
+    const chance = Math.max(0.05, Math.min(0.97,
+      this.rarity().baseCatch - S.qualityShift + quality * S.qualitySwing));
+
+    setTimeout(() => {
+      if (Math.random() < chance) {
+        this.strayBefriended(stars);
+      } else {
+        const excuse = stars >= 2
+          ? 'They blinked! So dramatic.'
+          : 'Blurry! The cat refuses to be perceived.';
+        this.registerMiss(excuse);
+      }
+    }, 320);
   },
 
   /* --------------------------- flick physics ----------------------------- */
@@ -163,7 +269,6 @@ const Encounter = {
     };
     setPos(pos);
 
-    // drag-and-flick handling with velocity sampling
     let samples = [];
     let dragging = false;
 
@@ -186,7 +291,6 @@ const Encounter = {
       if (!dragging) return;
       dragging = false;
 
-      // velocity from the last ~100 ms of pointer movement
       const now = performance.now();
       const recent = samples.filter((sm) => now - sm.t < 110);
       if (recent.length < 2) { setPos(pos = home()); return; }
@@ -197,7 +301,6 @@ const Encounter = {
 
       const speed = Math.hypot(vx, vy);
       if (speed < CONFIG.catchRules.minThrowSpeed || vy > -100) {
-        // too soft or not upward → treat plops back home
         setPos(pos = home());
         return;
       }
@@ -215,19 +318,16 @@ const Encounter = {
     th.x += th.vx * dt;
     th.y += th.vy * dt;
 
-    // depth illusion: shrink as it flies toward the cat
     const catY = stage.clientHeight * 0.26;
     const startY = stage.clientHeight - 70;
     const progress = Math.max(0, Math.min(1, (startY - th.y) / (startY - catY)));
     th.setPos(th, 1 - 0.45 * progress);
 
-    // reached the cat's plane while still rising/level → evaluate the landing
     if (!th.evaluated && th.y <= catY) {
       th.evaluated = true;
       this.evaluateLanding(th.x);
       return;
     }
-    // fell off the bottom or flew wide → miss (short throw)
     if (th.y > stage.clientHeight + 60 || th.x < -80 || th.x > stage.clientWidth + 80) {
       this.throwing = null;
       this.registerMiss('The treat went wide!');
@@ -236,7 +336,7 @@ const Encounter = {
 
   evaluateLanding(landX) {
     const stage = this.els['enc-stage'];
-    const r = CONFIG.rarity[this.form.rarity];
+    const r = this.rarity();
     const catX = stage.clientWidth / 2;
     const hitRadius = stage.clientWidth * CONFIG.catchRules.hitRadiusFrac;
     this.throwing = null;
@@ -246,21 +346,17 @@ const Encounter = {
       this.registerMiss('Missed! The cat is unimpressed.');
       return;
     }
-
-    // the cat may bat the treat away mid-air (rarer = sassier)
     if (Math.random() < r.batChance) {
       this.batAway();
       return;
     }
-
-    // catch roll: base + treat bonus + ring-tightness bonus
     const treatBonus = CONFIG.treats[State.data.selectedTreat].bonus;
     const ringBonus = CONFIG.catchRules.ringBonusMax * this.ringTightness();
     const chance = Math.min(0.98, r.baseCatch + treatBonus + ringBonus);
-    this.ringFrozen = false; // laser is spent on this throw either way
+    this.ringFrozen = false;
 
     if (Math.random() < chance) {
-      this.gotcha();
+      this.befriended();
     } else {
       this.registerMiss('So close! The cat wriggled away from the treat.');
     }
@@ -278,11 +374,18 @@ const Encounter = {
     this.misses += 1;
     this.updateMisses();
     UI.toast(msg);
-    const isRarePlus = this.form.rarity === 'rare' || this.form.rarity === 'legendary';
-    const limit = isRarePlus ? CONFIG.catchRules.maxMisses : CONFIG.catchRules.maxMisses + 2;
+
+    let limit;
+    if (this.isStray()) {
+      limit = CONFIG.strays.shots;
+    } else {
+      const rar = this.subject.form.rarity;
+      const isRarePlus = rar === 'rare' || rar === 'legendary';
+      limit = isRarePlus ? CONFIG.catchRules.maxMisses : CONFIG.catchRules.maxMisses + 2;
+    }
     if (this.misses >= limit) {
       this.escape();
-    } else {
+    } else if (!this.isStray()) {
       setTimeout(() => this.resetTreat(), 350);
     }
   },
@@ -295,19 +398,16 @@ const Encounter = {
     const cat = this.els['enc-cat'];
     cat.classList.add('flee');
     const banner = this.els['enc-banner'];
-    banner.textContent = 'IT RAN AWAY 💨';
+    banner.textContent = this.isStray() ? 'IT SCAMPERED OFF 💨' : 'IT RAN AWAY 💨';
     banner.classList.remove('hidden', 'gotcha');
     banner.classList.add('escaped');
-    setTimeout(() => this.close(), 1600);
+    setTimeout(() => { cat.classList.remove('flee'); this.close(); }, 1600);
   },
 
-  gotcha() {
-    this.resolved = true;
-    const form = this.form;
-    const r = CONFIG.rarity[form.rarity];
+  /* ------------------------ shared reward plumbing ----------------------- */
 
-    // rewards (daily bonus doubles the FIRST catch of the day)
-    let coins = r.coins;
+  payRewards(baseCoins) {
+    let coins = baseCoins;
     let dailyBonus = false;
     if (State.dailyBonusAvailable()) {
       coins *= CONFIG.daily.firstCatchCoinMult;
@@ -318,17 +418,28 @@ const Encounter = {
     d.coins += coins;
     d.stats.coinsEarned += coins;
     d.stats.catches += 1;
+    return { coins, dailyBonus };
+  },
+
+  /* ----------------- success: mood form (treat) befriended --------------- */
+
+  befriended() {
+    this.resolved = true;
+    const form = this.subject.form;
+    const r = this.rarity();
+
+    const { coins, dailyBonus } = this.payRewards(r.coins);
+    const d = State.data;
     if (form.rarity === 'legendary') d.stats.legendary += 1;
     d.collection[form.key] = (d.collection[form.key] || 0) + 1;
-    const newLevels = State.addXp(r.xp); // saves internally
+    const newLevels = State.addXp(r.xp);
 
     Sound.purr();
     setTimeout(() => Sound.coin(), 500);
 
-    // heart burst + GOTCHA banner
     UI.heartBurst(this.els['enc-stage']);
     const banner = this.els['enc-banner'];
-    banner.textContent = 'GOTCHA! 🐾';
+    banner.textContent = 'BEFRIENDED! 💖';
     banner.classList.remove('hidden', 'escaped');
     banner.classList.add('gotcha');
     this.els['enc-cat'].classList.add('caught');
@@ -337,10 +448,54 @@ const Encounter = {
     if (dailyBonus) notes.push('DAILY BONUS ×2! ☀️');
     UI.toast(notes.join('  '));
 
+    const rare = form.rarity === 'rare' || form.rarity === 'legendary';
     setTimeout(() => {
       this.close();
       this.els['enc-cat'].classList.remove('caught');
-      if (newLevels.length) UI.showLevelUp(newLevels[newLevels.length - 1]);
+      const after = () => { if (newLevels.length) UI.showLevelUp(newLevels[newLevels.length - 1]); };
+      if (rare) UI.rareCelebration(form.rarity, Assets.catNode(form, '140px'), after);
+      else after();
     }, 1700);
+  },
+
+  /* ------------- success: stray photographed → name & adopt -------------- */
+
+  strayBefriended(stars) {
+    this.resolved = true;
+    const breed = this.subject.breed;
+    const rarity = this.subject.rarity;
+    const r = this.rarity();
+
+    const baseCoins = Math.round(r.coins * breed.bonus) + stars * CONFIG.strays.starCoinBonus;
+    const { coins, dailyBonus } = this.payRewards(baseCoins);
+    if (rarity === 'legendary') State.data.stats.legendary += 1;
+    const newLevels = State.addXp(r.xp);
+
+    Sound.purr();
+    setTimeout(() => Sound.coin(), 500);
+
+    UI.heartBurst(this.els['enc-stage']);
+    const banner = this.els['enc-banner'];
+    banner.textContent = 'NEW FRIEND! 📸';
+    banner.classList.remove('hidden', 'escaped');
+    banner.classList.add('gotcha');
+    this.els['enc-cat'].classList.add('caught');
+
+    const notes = [`${'⭐'.repeat(stars)} photo! +${coins} 🐾 · +${r.xp} XP`];
+    if (breed.bonus > 1) notes.push(`${breed.name} bonus ×${breed.bonus}!`);
+    if (dailyBonus) notes.push('DAILY ×2! ☀️');
+    UI.toast(notes.join('  '));
+
+    const rare = rarity === 'rare' || rarity === 'legendary';
+    setTimeout(() => {
+      this.close();
+      this.els['enc-cat'].classList.remove('caught');
+      // name & adopt → then celebrate rares → then any level-up
+      UI.promptAdoptName(breed, stars, rarity, () => {
+        const after = () => { if (newLevels.length) UI.showLevelUp(newLevels[newLevels.length - 1]); };
+        if (rare) UI.rareCelebration(rarity, Assets.strayNode(breed, '140px'), after);
+        else after();
+      });
+    }, 1500);
   },
 };

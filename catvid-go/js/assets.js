@@ -1,7 +1,8 @@
 /* ==========================================================================
    CatVid GO — assets.js
    Probes every path in ASSET_MANIFEST once at boot. Anything missing gets a
-   styled CSS placeholder instead, so the game never breaks on missing art.
+   drawn SVG cat (see catsvg.js) instead, so the game never breaks on
+   missing art — and stray cats stay recolorable by the player.
    ========================================================================== */
 
 const Assets = {
@@ -25,37 +26,65 @@ const Assets = {
       ...Object.values(ASSET_MANIFEST.treats),
       ...Object.values(ASSET_MANIFEST.maps),
       ...ALL_FORMS.map((f) => f.sprite),
+      ...BREEDS.map((b) => ASSET_MANIFEST.straySprite(b.id)),
     ];
-    // file:// probes error instantly; http probes are parallel — either way quick
     await Promise.all(paths.map((p) => this.probe(p)));
   },
 
   has(src) { return !!this.available[src]; },
 
   /**
-   * Build a DOM node for a cat form: real <img> if the sprite exists,
-   * otherwise a styled placeholder card (coat-colored circle + emoji).
-   * `size` is a CSS length like '72px' or '100%'.
+   * DOM node for a Minnie/Biscuit mood form: real <img> if the sprite
+   * exists, otherwise the drawn SVG cat with a mood badge.
+   * `custom` (optional) = saved collar/accessory for the star cats.
    */
-  catNode(form, size) {
+  catNode(form, size, custom) {
     if (this.has(form.sprite)) {
-      const img = document.createElement('img');
-      img.src = form.sprite;
-      img.alt = `${form.catName} — ${form.moodName}`;
-      img.className = 'cat-sprite';
-      img.style.width = size;
-      img.style.height = size;
-      img.draggable = false;
-      return img;
+      return this._imgNode(form.sprite, `${form.catName} — ${form.moodName}`, size, custom);
     }
-    const cat = CATS[form.catId];
-    const ph = document.createElement('div');
-    ph.className = `cat-ph cat-ph--${form.catId}`;
-    ph.style.width = size;
-    ph.style.height = size;
-    ph.style.background = `linear-gradient(145deg, ${cat.coat1} 55%, ${cat.coat2} 55%)`;
-    ph.innerHTML = `<span class="cat-ph__emoji">${cat.emoji}</span><span class="cat-ph__mood">${form.emoji}</span>`;
-    return ph;
+    const wrap = document.createElement('div');
+    wrap.className = 'cat-draw';
+    wrap.style.width = size;
+    wrap.style.height = size;
+    const look = Object.assign({}, STAR_LOOKS[form.catId], custom || {});
+    wrap.innerHTML = catSVG(look) + `<span class="cat-draw__mood">${form.emoji}</span>`;
+    return wrap;
+  },
+
+  /**
+   * DOM node for a stray breed. `colors` overrides the breed's default look
+   * (that's how player customization recolors the cat). Real art at
+   * assets/cats/stray_<id>.png wins if present.
+   */
+  strayNode(breed, size, colors) {
+    const src = ASSET_MANIFEST.straySprite(breed.id);
+    if (this.has(src)) {
+      return this._imgNode(src, breed.name, size, colors);
+    }
+    const wrap = document.createElement('div');
+    wrap.className = 'cat-draw';
+    wrap.style.width = size;
+    wrap.style.height = size;
+    wrap.innerHTML = catSVG(Object.assign({}, breed.look, colors || {}));
+    return wrap;
+  },
+
+  /** Real <img>, with the accessory emoji overlaid if one is equipped. */
+  _imgNode(src, alt, size, custom) {
+    const wrap = document.createElement('div');
+    wrap.className = 'cat-draw';
+    wrap.style.width = size;
+    wrap.style.height = size;
+    const img = document.createElement('img');
+    img.src = src;
+    img.alt = alt;
+    img.className = 'cat-sprite';
+    img.draggable = false;
+    wrap.appendChild(img);
+    const accId = custom && custom.accessory;
+    const acc = accId && accId !== 'none' && ACCESSORIES.find((a) => a.id === accId);
+    if (acc) wrap.insertAdjacentHTML('beforeend', `<span class="cat-draw__acc">${acc.emoji}</span>`);
+    return wrap;
   },
 
   /** Treat sprite or emoji fallback. */
